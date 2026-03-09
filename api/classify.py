@@ -3,6 +3,7 @@
 import os
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -27,7 +28,8 @@ def serve_static(path):
 
 @app.route("/api/classify", methods=["POST"])
 def api_classify():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
         return jsonify({"error": "ANTHROPIC_API_KEY not configured"}), 500
 
     khi_file = request.files.get("khi_file")
@@ -36,17 +38,19 @@ def api_classify():
 
     spec_file = request.files.get("specialties_file")
 
-    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
-        khi_file.save(tmp.name)
-        khi_path = tmp.name
-
+    khi_path = None
     spec_path = DEFAULT_SPECIALTIES
-    if spec_file and spec_file.filename and spec_file.filename.endswith(".xlsx"):
-        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
-            spec_file.save(tmp.name)
-            spec_path = tmp.name
 
     try:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            khi_file.save(tmp.name)
+            khi_path = tmp.name
+
+        if spec_file and spec_file.filename and spec_file.filename.endswith(".xlsx"):
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                spec_file.save(tmp.name)
+                spec_path = tmp.name
+
         articles = load_articles(khi_path)
         specialties = load_specialties(spec_path)
 
@@ -74,9 +78,10 @@ def api_classify():
             ],
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        tb = traceback.format_exc()
+        return jsonify({"error": str(e), "traceback": tb}), 500
     finally:
-        if os.path.exists(khi_path):
+        if khi_path and os.path.exists(khi_path):
             os.unlink(khi_path)
         if spec_path != DEFAULT_SPECIALTIES and os.path.exists(spec_path):
             os.unlink(spec_path)
