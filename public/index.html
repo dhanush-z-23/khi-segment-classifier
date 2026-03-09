@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KHI Segment Classifier</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1117;
+            color: #e1e4e8;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
+            border-bottom: 1px solid #21262d;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header h1 { font-size: 22px; font-weight: 600; color: #f0f6fc; }
+        .header .badge {
+            background: #238636; color: white;
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 12px; font-weight: 500;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 32px 40px; }
+
+        .flash {
+            padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;
+        }
+        .flash.error { background: #3d1f1f; border: 1px solid #f85149; color: #f85149; }
+        .flash.success { background: #1f3d2b; border: 1px solid #3fb950; color: #3fb950; }
+
+        .upload-card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 12px; padding: 32px; margin-bottom: 32px;
+        }
+        .upload-card h2 { font-size: 18px; margin-bottom: 20px; color: #f0f6fc; }
+        .form-row { display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 250px; }
+        .form-group label {
+            display: block; font-size: 13px; color: #8b949e;
+            margin-bottom: 8px; font-weight: 500;
+        }
+        .form-group .hint { font-size: 11px; color: #6e7681; margin-top: 4px; }
+        input[type="file"] {
+            width: 100%; padding: 10px 14px; background: #0d1117;
+            border: 1px solid #30363d; border-radius: 8px;
+            color: #c9d1d9; font-size: 14px; cursor: pointer;
+        }
+        input[type="file"]:hover { border-color: #58a6ff; }
+        .btn {
+            padding: 10px 28px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-primary { background: #238636; color: white; }
+        .btn-primary:hover { background: #2ea043; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .loading { display: none; align-items: center; gap: 12px; padding: 16px; color: #58a6ff; }
+        .spinner {
+            width: 20px; height: 20px;
+            border: 2px solid #30363d; border-top-color: #58a6ff;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .results { display: grid; gap: 24px; }
+        .result-header {
+            display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 16px;
+        }
+        .result-header h2 { font-size: 20px; color: #f0f6fc; }
+        .stats { display: flex; gap: 12px; }
+        .stat {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 8px; padding: 8px 16px; text-align: center;
+        }
+        .stat .value { font-size: 20px; font-weight: 700; color: #58a6ff; }
+        .stat .label {
+            font-size: 11px; color: #8b949e;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .segments-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;
+        }
+        .segment-card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 12px; padding: 24px;
+            position: relative; overflow: hidden;
+        }
+        .segment-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        }
+        .segment-card.primary::before { background: #58a6ff; }
+        .segment-card.secondary::before { background: #d2a8ff; }
+        .segment-card.tertiary::before { background: #7ee787; }
+        .segment-rank {
+            font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+        }
+        .segment-card.primary .segment-rank { color: #58a6ff; }
+        .segment-card.secondary .segment-rank { color: #d2a8ff; }
+        .segment-card.tertiary .segment-rank { color: #7ee787; }
+        .segment-name { font-size: 18px; font-weight: 600; color: #f0f6fc; margin-bottom: 4px; }
+        .segment-id { font-size: 13px; color: #6e7681; margin-bottom: 12px; }
+        .segment-reasoning { font-size: 13px; color: #8b949e; line-height: 1.6; }
+
+        .articles-card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 12px; overflow: hidden;
+        }
+        .articles-card h3 {
+            padding: 16px 24px; font-size: 15px; color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+        }
+        .articles-table { width: 100%; border-collapse: collapse; }
+        .articles-table th {
+            text-align: left; padding: 10px 16px; font-size: 12px; color: #8b949e;
+            font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+            border-bottom: 1px solid #21262d; background: #0d1117;
+        }
+        .articles-table td {
+            padding: 12px 16px; font-size: 13px; color: #c9d1d9;
+            border-bottom: 1px solid #21262d; vertical-align: top;
+        }
+        .articles-table tr:hover td { background: #1c2128; }
+        .articles-table .title-cell { font-weight: 500; color: #f0f6fc; max-width: 400px; }
+        .articles-table .content-cell {
+            max-width: 500px; color: #8b949e; font-size: 12px; line-height: 1.5;
+        }
+        .articles-table .sno-cell { color: #6e7681; font-size: 12px; width: 40px; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #6e7681; }
+        .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.4; }
+        .empty-state h3 { font-size: 18px; color: #8b949e; margin-bottom: 8px; }
+        .empty-state p { font-size: 14px; }
+
+        #resultsSection { display: none; }
+        #emptyState { display: block; }
+
+        .timer { font-size: 12px; color: #6e7681; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>KHI Segment Classifier</h1>
+        <span class="badge">AI-Powered</span>
+    </div>
+
+    <div class="container">
+        <div id="flashContainer"></div>
+
+        <!-- Upload Form -->
+        <div class="upload-card">
+            <h2>Upload KHI Articles</h2>
+            <form id="classifyForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>KHI Articles File (.xlsx) *</label>
+                        <input type="file" name="khi_file" id="khiFile" accept=".xlsx" required>
+                        <div class="hint">Excel file with columns: S no, title, teaser, content</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Specialties File (.xlsx)</label>
+                        <input type="file" name="specialties_file" id="specFile" accept=".xlsx">
+                        <div class="hint">Optional — uses default esanum specialties if not provided</div>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            Classify KHI
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+                <span>Analyzing articles with Claude AI...</span>
+                <span class="timer" id="timer"></span>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3>No classification yet</h3>
+            <p>Upload a KHI articles Excel file above to get started.</p>
+        </div>
+
+        <!-- Results (hidden initially) -->
+        <div id="resultsSection" class="results">
+            <div class="result-header">
+                <div>
+                    <h2>Classification Results</h2>
+                    <p style="color: #8b949e; font-size: 13px; margin-top: 4px;">
+                        File: <span id="resultFilename"></span>
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="value" id="statArticles">0</div>
+                            <div class="label">Articles</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Segment Cards -->
+            <div class="segments-grid">
+                <div class="segment-card primary">
+                    <div class="segment-rank">Primary Segment</div>
+                    <div class="segment-name" id="primaryName"></div>
+                    <div class="segment-id" id="primaryId"></div>
+                    <div class="segment-reasoning" id="primaryReasoning"></div>
+                </div>
+                <div class="segment-card secondary">
+                    <div class="segment-rank">Secondary Segment</div>
+                    <div class="segment-name" id="secondaryName"></div>
+                    <div class="segment-id" id="secondaryId"></div>
+                    <div class="segment-reasoning" id="secondaryReasoning"></div>
+                </div>
+                <div class="segment-card tertiary">
+                    <div class="segment-rank">Tertiary Segment</div>
+                    <div class="segment-name" id="tertiaryName"></div>
+                    <div class="segment-id" id="tertiaryId"></div>
+                    <div class="segment-reasoning" id="tertiaryReasoning"></div>
+                </div>
+            </div>
+
+            <!-- Articles Table -->
+            <div class="articles-card">
+                <h3>Articles Analyzed (<span id="articleCount">0</span>)</h3>
+                <table class="articles-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Title</th>
+                            <th>Content Preview</th>
+                        </tr>
+                    </thead>
+                    <tbody id="articlesBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('classifyForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loadingState');
+        const timerEl = document.getElementById('timer');
+        const flashContainer = document.getElementById('flashContainer');
+
+        let timerInterval;
+
+        function showFlash(msg, type) {
+            flashContainer.innerHTML = `<div class="flash ${type}">${msg}</div>`;
+            setTimeout(() => flashContainer.innerHTML = '', 8000);
+        }
+
+        function startTimer() {
+            let seconds = 0;
+            timerEl.textContent = '0s';
+            timerInterval = setInterval(() => {
+                seconds++;
+                timerEl.textContent = `${seconds}s`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function renderResults(data) {
+            const c = data.classification;
+
+            document.getElementById('resultFilename').textContent = data.filename;
+            document.getElementById('statArticles').textContent = data.num_articles;
+
+            document.getElementById('primaryName').textContent = c.primary_segment_name;
+            document.getElementById('primaryId').textContent = 'Segment ID: ' + c.primary_segment_id;
+            document.getElementById('primaryReasoning').textContent = c.primary_reasoning;
+
+            document.getElementById('secondaryName').textContent = c.secondary_segment_name;
+            document.getElementById('secondaryId').textContent = 'Segment ID: ' + c.secondary_segment_id;
+            document.getElementById('secondaryReasoning').textContent = c.secondary_reasoning;
+
+            document.getElementById('tertiaryName').textContent = c.tertiary_segment_name;
+            document.getElementById('tertiaryId').textContent = 'Segment ID: ' + c.tertiary_segment_id;
+            document.getElementById('tertiaryReasoning').textContent = c.tertiary_reasoning;
+
+            document.getElementById('articleCount').textContent = data.articles.length;
+
+            const tbody = document.getElementById('articlesBody');
+            tbody.innerHTML = '';
+            data.articles.forEach((art, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="sno-cell">${art.sno || (i + 1)}</td>
+                    <td class="title-cell">
+                        ${escapeHtml(art.title)}
+                        ${art.teaser ? '<br><small style="color:#6e7681;">' + escapeHtml(art.teaser) + '</small>' : ''}
+                    </td>
+                    <td class="content-cell">${escapeHtml(art.content_preview)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'grid';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const khiFile = document.getElementById('khiFile').files[0];
+            if (!khiFile) {
+                showFlash('Please select a KHI articles file.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('khi_file', khiFile);
+
+            const specFile = document.getElementById('specFile').files[0];
+            if (specFile) formData.append('specialties_file', specFile);
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+            loading.style.display = 'flex';
+            startTimer();
+
+            try {
+                const resp = await fetch('/api/classify', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    showFlash(data.error || 'Classification failed', 'error');
+                    return;
+                }
+
+                renderResults(data);
+                showFlash('Classification complete!', 'success');
+
+            } catch (err) {
+                showFlash('Request failed: ' + err.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Classify KHI';
+                loading.style.display = 'none';
+                stopTimer();
+            }
+        });
+    </script>
+</body>
+</html>

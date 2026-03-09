@@ -413,23 +413,17 @@ class TestWebApp:
         resp = client.get("/")
         assert b"No classification yet" in resp.data
 
-    def test_classify_rejects_no_file(self):
+    def test_api_rejects_no_file(self):
+        os.environ["ANTHROPIC_API_KEY"] = "test-key"
         client = self._get_client()
-        resp = client.post("/classify", data={}, follow_redirects=True)
-        assert resp.status_code == 200
-
-    def test_classify_rejects_non_xlsx(self):
-        client = self._get_client()
-        from io import BytesIO
-        data = {"khi_file": (BytesIO(b"not excel"), "test.txt")}
-        resp = client.post("/classify", data=data, content_type="multipart/form-data", follow_redirects=True)
-        assert b"valid .xlsx" in resp.data
+        resp = client.post("/api/classify", data={}, content_type="multipart/form-data")
+        assert resp.status_code == 400
 
     @patch("app.classify_khi")
-    def test_classify_success(self, mock_classify):
+    def test_api_classify_success(self, mock_classify):
         mock_classify.return_value = {
             "primary_segment_id": 19,
-            "primary_segment_name": "Onkologie / Hämatologie",
+            "primary_segment_name": "Onkologie",
             "primary_reasoning": "Cancer focus",
             "secondary_segment_id": 11,
             "secondary_segment_name": "Frauenheilkunde",
@@ -442,7 +436,6 @@ class TestWebApp:
 
         client = self._get_client()
 
-        # Create a test xlsx in memory
         from io import BytesIO
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -452,36 +445,17 @@ class TestWebApp:
         wb.save(buf)
         buf.seek(0)
 
-        data = {"khi_file": (buf, "test_khi.xlsx")}
-        resp = client.post("/classify", data=data, content_type="multipart/form-data", follow_redirects=True)
-
+        resp = client.post("/api/classify", data={"khi_file": (buf, "test_khi.xlsx")}, content_type="multipart/form-data")
         assert resp.status_code == 200
-        assert b"Onkologie" in resp.data
-        assert b"Classification Results" in resp.data
-        assert b"Test Article" in resp.data
+        data = resp.get_json()
+        assert data["classification"]["primary_segment_id"] == 19
+        assert data["num_articles"] == 1
+        assert data["articles"][0]["title"] == "Test Article"
 
-    def test_download_without_result(self):
+    def test_api_no_key(self):
+        if "ANTHROPIC_API_KEY" in os.environ:
+            del os.environ["ANTHROPIC_API_KEY"]
         client = self._get_client()
-        resp = client.get("/download", follow_redirects=True)
-        assert resp.status_code == 200
-
-    @patch("app.classify_khi")
-    def test_api_endpoint(self, mock_classify):
-        mock_classify.return_value = {
-            "primary_segment_id": 19,
-            "primary_segment_name": "Onkologie",
-            "primary_reasoning": "r",
-            "secondary_segment_id": 11,
-            "secondary_segment_name": "Frau",
-            "secondary_reasoning": "r",
-            "tertiary_segment_id": 14,
-            "tertiary_segment_name": "Inn",
-            "tertiary_reasoning": "r",
-        }
-        os.environ["ANTHROPIC_API_KEY"] = "test-key"
-
-        client = self._get_client()
-
         from io import BytesIO
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -490,12 +464,10 @@ class TestWebApp:
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
-
         resp = client.post("/api/classify", data={"khi_file": (buf, "t.xlsx")}, content_type="multipart/form-data")
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["classification"]["primary_segment_id"] == 19
-        assert data["num_articles"] == 1
+        assert resp.status_code == 500
+        assert b"ANTHROPIC_API_KEY" in resp.data
+
 
 
 # ---------------------------------------------------------------------------
