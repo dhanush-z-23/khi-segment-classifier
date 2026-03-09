@@ -195,7 +195,7 @@ def classify_khi(articles: list[dict], specialties: list[dict]) -> dict:
     print(f"  Available segments: {len(specialties)}")
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=os.environ.get("CLASSIFIER_MODEL", "claude-sonnet-4-20250514"),
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
