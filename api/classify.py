@@ -3,7 +3,6 @@
 import os
 import sys
 import tempfile
-import traceback
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -78,8 +77,7 @@ def api_classify():
             ],
         })
     except Exception as e:
-        tb = traceback.format_exc()
-        return jsonify({"error": str(e), "traceback": tb}), 500
+        return jsonify({"error": str(e)}), 500
     finally:
         if khi_path and os.path.exists(khi_path):
             os.unlink(khi_path)
