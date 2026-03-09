@@ -1,14 +1,9 @@
 {
   "builds": [
-    { "src": "api/classify.py", "use": "@vercel/python" }
+    { "src": "api/classify.py", "use": "@vercel/python", "config": { "maxLambdaSize": "15mb" } }
   ],
   "routes": [
     { "src": "/api/classify", "dest": "/api/classify.py" },
     { "src": "/(.*)", "dest": "/public/$1" }
-  ],
-  "functions": {
-    "api/classify.py": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
